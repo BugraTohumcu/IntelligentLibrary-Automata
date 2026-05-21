@@ -33,10 +33,6 @@ public class BorrowAutomaton {
                 break;
         }
 
-        /* * ACADEMIC REQUIREMENT VERIFICATION:
-         * Triggers explicit state transition log to fulfill the formal method representation.
-         * Shows teammate and evaluator the step-by-step trace of the DFA execution path.
-         */
         if (oldState != currentState) {
             System.out.println("\n>>> [TRANSITION]: " + oldState.name() + " --(" + input.name() + ")--> " + currentState.name());
         }
