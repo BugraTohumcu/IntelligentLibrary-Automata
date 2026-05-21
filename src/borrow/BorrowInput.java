@@ -1,0 +1,6 @@
+package borrow;
+
+
+public enum BorrowInput {
+    INPUT_SEARCH, BOOK_FOUND, BOOK_NOT_FOUND, CONFIRM_BORROW, BORROW_REJECTED, GO_BACK_TO_IDLE
+}
