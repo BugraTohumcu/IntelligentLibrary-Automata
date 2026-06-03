@@ -13,7 +13,7 @@ import java.util.Scanner;
  * Synchronizes the shared database instances with the automaton structural tracking.
  */
 public class ReturnRenewConsoleUI {
-    
+
     private final ReturnRenewAutomaton automaton;
     private final BorrowedBookRepository borrowedRepo;
     private final BookRepository bookRepo;
@@ -38,7 +38,7 @@ public class ReturnRenewConsoleUI {
         while (!automaton.getCurrentState().isAcceptState()) {
             ReturnRenewState state = automaton.getCurrentState();
             System.out.println("\n[CURRENT STATE]: " + state.name() + " -> " + state.getConsoleMessage());
-            
+
             switch (state) {
                 case Q0_MAIN_PAGE:
                     if (borrowedRepo.hasBorrowedBooks(activeUserId)) {
@@ -52,11 +52,9 @@ public class ReturnRenewConsoleUI {
                 case Q2_CHECK_OVERDUE:
                     selectedBook = presentUserBooksAndSelect();
                     if (selectedBook == null) {
-                        /* * CANCELLATION EVENT HOOK:
-                         * Detects user triggered exit '0' and pushes the tracking system back safely.
-                         */
+                        
                         System.out.println("\n[RESULT]: CANCELLATION! User aborted active target selection.");
-                        automaton.transition(ReturnRenewInput.RETURN_MENU); 
+                        automaton.transition(ReturnRenewInput.RETURN_MENU);
                     } else {
                         if (selectedBook.isOverdue()) {
                             automaton.transition(ReturnRenewInput.OVERDUE);
@@ -67,13 +65,18 @@ public class ReturnRenewConsoleUI {
                     break;
 
                 case Q3_LATE_PENALTY_DECISION:
+                    /*
+                     * LATE PENALTY HANDLER:
+                     * Overdue books carry a financial penalty that must be settled before return.
+                     * User refusing to pay triggers account suspension (Q7).
+                     */
                     System.out.println("\n-------------------------------------------------------------");
                     System.out.println("[WARNING / REJECT CONDITION]: Overdue parameters triggered!");
                     System.out.println("A financial penalty is bound to this item. Settlement required.");
                     System.out.println("-------------------------------------------------------------");
                     System.out.print("Type 'pay' to clear charges and check-in, or 'ignore' to pass: ");
                     String penaltyChoice = scanner.nextLine().trim().toLowerCase();
-                    
+
                     if (penaltyChoice.equals("pay")) {
                         borrowedRepo.returnBook(activeUserId, selectedBook);
                         returnBook(selectedBook); // Syncing physical inventory
@@ -90,15 +93,24 @@ public class ReturnRenewConsoleUI {
                     break;
 
                 case Q4_RENEWAL_RETURN_MENU:
-                    System.out.print("Type 'return' to drop off book, or 'renew' to extend rental timeline: ");
+                    /*
+                     * LOST BOOK OPTION:
+                     * Extended menu allows reporting a book as lost in addition to return/renew.
+                     * Reporting a lost book removes it from the user's account and marks the
+                     * library copy permanently unavailable.
+                     */
+                    System.out.print("Type 'return' to return, 'renew' to extend, or 'lost' to report as lost: ");
                     String action = scanner.nextLine().trim().toLowerCase();
-                    
+
                     if (action.equals("renew")) {
                         automaton.transition(ReturnRenewInput.REQUEST_RENEWAL);
                     } else if (action.equals("return")) {
                         borrowedRepo.returnBook(activeUserId, selectedBook);
                         returnBook(selectedBook); // Syncing physical inventory
                         System.out.println("-> Book processing completed.");
+                        automaton.transition(ReturnRenewInput.EXIT_OR_RETURN);
+                    } else if (action.equals("lost")) {
+                        handleLostBook(selectedBook);
                         automaton.transition(ReturnRenewInput.EXIT_OR_RETURN);
                     } else {
                         System.out.println("\n[ERROR]: Command match failed. Invalid selection input.");
@@ -108,8 +120,8 @@ public class ReturnRenewConsoleUI {
 
                 case Q5_RENEWAL_APPROVAL:
                     // Random process simulator modeling dynamic backend server criteria approval
-                    boolean isApproved = Math.random() > 0.5; 
-                    
+                    boolean isApproved = Math.random() > 0.5;
+
                     if (isApproved) {
                         System.out.println("-> [COMPLETION]: Structural criteria passed. Extension authorized.");
                         automaton.transition(ReturnRenewInput.RENEWAL_ACCEPTED);
@@ -127,17 +139,16 @@ public class ReturnRenewConsoleUI {
                     returnBook(selectedBook); // Syncing physical inventory
                     automaton.transition(ReturnRenewInput.EXIT_OR_RETURN);
                     break;
-                    
+
                 default:
                     break;
             }
         }
 
-        // Final Terminal State Render Module
         ReturnRenewState finalState = automaton.getCurrentState();
         System.out.println("\n=========================================");
         System.out.println("[FINAL STATE REACHED]: " + finalState.name());
-        
+
         if (finalState == ReturnRenewState.Q7_SUSPEND) {
             System.out.println("[RESULT]: REJECT / ACCOUNT SUSPENDED!");
             System.out.println("System configuration Locked. Clearance required via administration desk.");
@@ -155,36 +166,51 @@ public class ReturnRenewConsoleUI {
         System.out.println("\n--- Your Borrowed Books ---");
         for (int i = 0; i < books.size(); i++) {
             String status = books.get(i).isOverdue() ? "[OVERDUE]" : "[Valid]";
-            System.out.println((i + 1) + ". " + books.get(i).getTitle() + " " + status);
+            System.out.println((i + 1) + ". " + books.get(i).getTitle()
+                    + " | Due: " + books.get(i).getDueDate() + " " + status);
         }
-        
+
         System.out.print("\nSelect the book number to manage (or '0' to exit): ");
         try {
             int choice = Integer.parseInt(scanner.nextLine().trim());
-            
-            if (choice == 0) {
-                return null;
-            }
-            
-            if (choice > 0 && choice <= books.size()) {
-                return books.get(choice - 1);
-            }
-            
-            // Out of bounds selection error handling
+            if (choice == 0) return null;
+            if (choice > 0 && choice <= books.size()) return books.get(choice - 1);
             System.out.println("\n[ERROR]: Choice outside valid list indexes.");
-            
         } catch (NumberFormatException e) {
-            // Invalid non-integer string format handling
             System.out.println("\n[ERROR]: Non-numeric evaluation format submitted.");
         }
-        
         return null;
     }
 
-    private void returnBook(BorrowedBook selectedBook){
+    private void returnBook(BorrowedBook selectedBook) {
         Book book = bookRepo.findBookByTitle(selectedBook.getTitle());
         if (book != null) {
             book.setAvailable(true);
         }
+    }
+
+    /**
+     * LOST BOOK HANDLER:
+     * Removes the book from the user's active loans and marks the library copy
+     * as unavailable (lost — no longer available for borrowing until restocked).
+     */
+    private void handleLostBook(BorrowedBook lostBook) {
+        System.out.println("\n-------------------------------------------------------------");
+        System.out.println("[LOST BOOK REPORT]: Marking book as lost: " + lostBook.getTitle());
+        System.out.println("-------------------------------------------------------------");
+
+        // Remove from user's borrowed list
+        borrowedRepo.returnBook(activeUserId, lostBook);
+
+        // Mark library copy as permanently unavailable (lost, not returned to shelf)
+        Book libraryBook = bookRepo.findBookByTitle(lostBook.getTitle());
+        if (libraryBook != null) {
+            libraryBook.setAvailable(false);
+            libraryBook.setLost(true);
+        }
+
+        System.out.println("-> Book removed from your account.");
+        System.out.println("-> Library inventory updated: copy marked as lost.");
+        System.out.println("-> A replacement fee has been applied to your account.");
     }
 }

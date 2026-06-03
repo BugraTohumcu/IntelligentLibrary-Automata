@@ -94,7 +94,7 @@ public class Test {
         int initialCount = borrowedRepo.getBooksForUser("admin").size();
         TestHelper.assertEquals(2, initialCount,
             "Test 10a: Admin starts with 2 borrowed books");
-        BorrowedBook newBook = new BorrowedBook("Test Book", false);
+        BorrowedBook newBook = new BorrowedBook("Test Book", null);
         borrowedRepo.addBook("admin", newBook);
         TestHelper.assertEquals(3, borrowedRepo.getBooksForUser("admin").size(),
             "Test 10b: Admin has 3 books after add");

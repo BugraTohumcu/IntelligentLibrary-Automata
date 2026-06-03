@@ -11,10 +11,12 @@ public class BookRepository {
         this.bookDatabase = new ArrayList<>();
         // Seeding dummy books data into our local library repository
         // Book title and availability
+        bookDatabase.add(new Book("Introduction to Automata Theory", false));
+        bookDatabase.add(new Book("Clean Code by Robert C. Martin", false));
         bookDatabase.add(new Book("Harry Potter and the Sorcerer's Stone", true));
         bookDatabase.add(new Book("The Lord of the Rings", false)); 
         bookDatabase.add(new Book("The Lord of the Rings", true)); 
-        bookDatabase.add(new Book("Les Miserables (Sefiller)", true));
+        bookDatabase.add(new Book("American Pyscho", true));
         bookDatabase.add(new Book("Crime and Punishment", false)); 
         bookDatabase.add(new Book("The Hobbit", true));
     }
@@ -29,7 +31,9 @@ public class BookRepository {
         for (Book book : bookDatabase) {
             // Case-insensitive check using toLowerCase()
             if (book.getTitle().toLowerCase().contains(lowerCaseQuery)) {
-                results.add(book);
+                Book bookCopy = new Book(book.getTitle(), book.isAvailable());
+                bookCopy.setLost(book.isLost());
+                results.add(bookCopy);
             }
         }
         return results;

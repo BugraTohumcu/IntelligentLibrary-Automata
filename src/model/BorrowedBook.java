@@ -1,27 +1,39 @@
 package model;
 
+import java.time.LocalDate;
+
 /**
  * Represents a book currently held by a user.
- * Tracks the title and whether the return date has passed (overdue).
+ * Overdue status is calculated automatically based on a 14-day borrowing period.
  */
 public class BorrowedBook {
     private final String title;
-    private boolean isOverdue;
+    private final LocalDate borrowDate;
 
-    public BorrowedBook(String title, boolean isOverdue) {
+    private static final int BORROW_PERIOD_DAYS = 14;
+
+    public BorrowedBook(String title, LocalDate borrowDate) {
         this.title = title;
-        this.isOverdue = isOverdue;
+        this.borrowDate = borrowDate;
     }
 
     public String getTitle() {
         return title;
     }
 
-    public boolean isOverdue() {
-        return isOverdue;
+    public LocalDate getBorrowDate() {
+        return borrowDate;
     }
 
-    public void setOverdue(boolean overdue) {
-        isOverdue = overdue;
+    public LocalDate getDueDate() {
+        return borrowDate.plusDays(BORROW_PERIOD_DAYS);
+    }
+
+    /**
+     * Automatically calculated — no manual setter needed.
+     * Returns true if today is past the due date.
+     */
+    public boolean isOverdue() {
+        return LocalDate.now().isAfter(getDueDate());
     }
 }
